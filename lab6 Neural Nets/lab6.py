@@ -165,14 +165,14 @@ def back_prop(net, input_values, desired_output, r=1, minimum_accuracy=-0.001):
     (2) the number of iterations (that is, the number of weight updates)"""
     it = 0
     actual_output, neuron_outputs = forward_prop(net, input_values, sigmoid)
-    print(actual_output,neuron_outputs)
-    print(net)
+    #print(actual_output,neuron_outputs)
+    #print(net)
     while accuracy(desired_output, actual_output) < minimum_accuracy:
         net = update_weights(net, input_values, desired_output, neuron_outputs, r)
         it +=1
         actual_output, neuron_outputs = forward_prop(net, input_values, sigmoid)
-        print(actual_output,desired_output)
-    print(net)
+        #print(actual_output,desired_output)
+    #print(net)
     return net, it
 
 #### Part 5: Training a Neural Net #############################################

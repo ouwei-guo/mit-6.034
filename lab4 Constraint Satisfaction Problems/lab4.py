@@ -282,8 +282,8 @@ def solve_constraint_generic(problem, enqueue_condition=None) :
             agenda = cop
     return None,num_extensions
 
-p=get_pokemon_problem()
-print(solve_constraint_generic(p,condition_singleton))
+#p=get_pokemon_problem()
+#print(solve_constraint_generic(p,condition_singleton))
 
 # QUESTION 5: How many extensions does it take to solve the Pokemon problem
 #    with forward checking and propagation through singleton domains? (Don't

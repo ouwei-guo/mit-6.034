@@ -228,13 +228,10 @@ def get_k_closest_points(point, data, k, distance_metric):
     and a distance metric (a function), returns a list containing the k points
     from the data that are closest to the test point, according to the distance
     metric.  Breaks ties lexicographically by coordinates."""
-    t = []
-    m = []
-    for p in sorted(data,key=attrgetter('coords')):
-        t.append((p,distance_metric(point,p)))
-    for p in sorted(t,key=itemgetter(1)):
-        m.append(p[0])
-    return m[0:k]
+    break_ties = sorted(data, key = lambda d: d.coords)
+    distances = sorted(break_ties, key = lambda d: distance_metric(d,point))
+    return distances[:k]
+
 
 def knn_classify_point(point, data, k, distance_metric):
     """Given a test point, a list of points (the data), an int 0 < k <= len(data),

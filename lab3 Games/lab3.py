@@ -4,7 +4,6 @@
 from game_api import *
 from boards import *
 from toytree import GAME1
-import time
 
 INF = float('inf')
 
@@ -14,84 +13,83 @@ INF = float('inf')
 
 def is_game_over_connectfour(board):
     """Returns True if game is over, otherwise False."""
-    c = board.get_all_chains()
-    for p in c:
-        if len(p) > 3:
+    chains = board.get_all_chains()
+    for c in chains:
+        if len(c) >= 4:
             return True
-    for i in range(board.num_cols):
-        if board.is_column_full(i):
-            if i == 6:
-                return True
-        else:
+        
+    for col in range(board.num_cols):
+        if board.is_column_full(col) == False:
             return False
-
+    return True
+        
 def next_boards_connectfour(board):
     """Returns a list of ConnectFourBoard objects that could result from the
     next move, or an empty list if no moves can be made."""
+    moves = []
     if is_game_over_connectfour(board):
-        return []
-    t = []
-    for i in range(board.num_cols):
-        if not board.is_column_full(i):
-            t.append(board.add_piece(i))
-    return t
+        return moves
 
+    for col in range(board.num_cols):
+        if board.is_column_full(col) == False:
+            moves.append(col)
+    return [board.add_piece(m) for m in moves]    
+    
 def endgame_score_connectfour(board, is_current_player_maximizer):
     """Given an endgame board, returns 1000 if the maximizer has won,
     -1000 if the minimizer has won, or 0 in case of a tie."""
-    if is_current_player_maximizer:
-        p = -1000
-        c = board.get_all_chains(not is_current_player_maximizer)
-    else:
-        p = 1000
-        c = board.get_all_chains(is_current_player_maximizer)
-    for s in c:
-        if len(s) > 3:
-            return p
-    return 0
+    if is_game_over_connectfour(board):
+        chains = board.get_all_chains()
+        for c in chains:
+            if len(c) >= 4:
+                if is_current_player_maximizer:
+                    return -1000
+                else:
+                    return 1000
+        else:
+            return 0
 
 def endgame_score_connectfour_faster(board, is_current_player_maximizer):
     """Given an endgame board, returns an endgame score with abs(score) >= 1000,
     returning larger absolute scores for winning sooner."""
-    if is_current_player_maximizer:
-        p = -1000-(1000/board.count_pieces(not is_current_player_maximizer))
-        c = board.get_all_chains(not is_current_player_maximizer)
-    else:
-        p = 1000+(1000/board.count_pieces(is_current_player_maximizer))
-        c = board.get_all_chains(is_current_player_maximizer)
-    for s in c:
-        if len(s) > 3:
-            return p
-    return 0
+    pieces = board.count_pieces()
+    if is_game_over_connectfour(board):
+        chains = board.get_all_chains()
+        for c in chains:
+            if len(c) >= 4:
+                if is_current_player_maximizer:
+                    return -2000 + pieces
+                else:
+                    return 2000 - pieces
+        else:
+            return 0
 
 def heuristic_connectfour(board, is_current_player_maximizer):
     """Given a non-endgame board, returns a heuristic score with
     abs(score) < 1000, where higher numbers indicate that the board is better
     for the maximizer."""
-    curr_chain = board.get_all_chains(is_current_player_maximizer)
-    prev_chain = board.get_all_chains(not is_current_player_maximizer)
-    heur = 0
-    if is_current_player_maximizer:
-        if board.get_piece(3, 5) == 1:
-            heur = 100
-    elif board.get_piece(3, 5) == 1:
-        heur = -100
-    heur += len(prev_chain)/(len(curr_chain)+1)
-    for c in curr_chain:
-        if len(c) > 2:
-            heur += 5
-        else:
-            heur += len(c)
-    for c in prev_chain:
-        if len(c) > 2:
-            heur -= 5
-        else:
-            heur -= len(c)
-    if heur == 0:
-        return -1
-    return heur**3/10
+    current_chains = board.get_all_chains(is_current_player_maximizer)
+    other_chains = board.get_all_chains(not(is_current_player_maximizer))
+    score = 0
+    
+    for c in current_chains:
+        if len(c) == 1:
+            score +=1
+        if len(c) == 2:
+            score +=10
+        if len(c) == 3:
+            score +=100
+    for c in other_chains:
+        if len(c) == 1:
+            score -=1
+        if len(c) == 2:
+            score -=10
+        if len(c) == 3:
+            score -=100      
+    return score
 
-# Now we can create AbstractGameState objects for Connect Four, using some of
+            
+#Now we can create AbstractGameState objects for Connect Four, using some of
 # the functions you implemented above.  You can use the following examples to
 # test your dfs and minimax implementations in Part 2.
 
@@ -124,209 +122,160 @@ def dfs_maximizing(state) :
      0. the best path (a list of AbstractGameState objects),
      1. the score of the leaf node (a number), and
      2. the number of static evaluations performed (a number)"""
-    nex = state.generate_next_states()
-    agenda = []
-    best_path = []
-    for p in nex:
-        agenda.append([state,p])
-    best_score = 0
-    number_eval = 0
-    while len(agenda) > 0:
-        t = agenda.pop(0)
-        if t[-1].is_game_over():
-            number_eval += 1
-            if t[-1].get_endgame_score() > best_score:
-                best_score = t[-1].get_endgame_score()
-                best_path = t
+    agenda = [[state]]
+    static_evals = 0
+    best_path = None, None #path, endgame_score
+    
+    while agenda!=[]:
+        path = agenda.pop()
+        node = path[-1]
+      
+        children = node.generate_next_states()
+        
+        if children!=[]:
+            for c in children:
+                if c not in path:
+                    agenda.append(path + [c])
         else:
-            nex = t[-1].generate_next_states()
-            tem = []
-            for p in nex:
-                tem.append(t+[p])
-            agenda = tem + agenda
-    return (best_path,best_score,number_eval)
-
+            node_val = node.get_endgame_score(is_current_player_maximizer=True)
+            static_evals += 1
+            
+            if best_path == (None, None) or node_val > best_path[-1]:
+                    best_path = path, node_val 
+                                              
+    return best_path[-2], best_path[-1], static_evals
 
 # Uncomment the line below to try your dfs_maximizing on an
 # AbstractGameState representing the games tree "GAME1" from toytree.py:
-
 #pretty_print_dfs_type(dfs_maximizing(GAME1))
-
-def minimax_endgame_search(state, maximize=True):
+    
+def minimax_endgame_search(state, maximize=True) :
     """Performs minimax search, searching all leaf nodes and statically
     evaluating all endgame scores.  Same return type as dfs_maximizing."""
-    number_eval = 0    
-    def min_play(state, maximize):
-        if state[-1].is_game_over():
-            nonlocal number_eval
-            number_eval +=1
-            return state, state[-1].get_endgame_score(maximize)
-        min_score = INF
-        min_path = []
-        agenda = []
-        for p in state[-1].generate_next_states():
-            agenda.append(state+[p])
-        while len(agenda) > 0:
-            t = agenda.pop(0)
-            path, score = max_play(t, not maximize)
-            if min_score > score:
-                min_path = path
-                min_score = score
-        return min_path, min_score
+    static_evals = 0
+    best_path = None, None #path, #minimax_score
+    
+    next_states = state.generate_next_states()
+    
+    if  next_states == []:
+        return [state], state.get_endgame_score(is_current_player_maximizer=maximize), 1
 
-    def max_play(state, maximize):
-        if state[-1].is_game_over():
-            nonlocal number_eval
-            number_eval +=1
-            return state, state[-1].get_endgame_score(maximize)
-        max_score = -INF
-        max_path = []
-        agenda = []
-        for p in state[-1].generate_next_states():
-            agenda.append(state+[p])
-        while len(agenda) > 0:
-            t = agenda.pop(0)
-            path, score = min_play(t, not maximize)
-            if max_score < score:
-                max_path = path
-                max_score = score
-        return max_path, max_score
-    best_path = []
-    best_score = 0
-    if maximize:
-        best_path, best_score = max_play([state],maximize)
+    if maximize == True:
+        for ns in next_states:
+            new_res = minimax_endgame_search(ns, False) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] > best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
     else:
-        best_path, best_score = min_play([state],maximize)
-    return (best_path,best_score,number_eval)
+        for ns in next_states:
+            new_res = minimax_endgame_search(ns, True) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] < best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
+                
+    return best_path[-2], best_path[-1], static_evals
 
 # Uncomment the line below to try your minimax_endgame_search on an
 # AbstractGameState representing the ConnectFourBoard "NEARLY_OVER" from boards.py:
-
-#pretty_print_dfs_type(minimax_endgame_search(state_NEARLY_OVER,True))
-
+#pretty_print_dfs_type(minimax_endgame_search(state_NEARLY_OVER))
 
 def minimax_search(state, heuristic_fn=always_zero, depth_limit=INF, maximize=True) :
     """Performs standard minimax search. Same return type as dfs_maximizing."""
-    number_eval = 0    
-    def min_play(state, depth, maximize):
-        if state[-1].is_game_over():
-            nonlocal number_eval
-            number_eval +=1
-            return state, state[-1].get_endgame_score(maximize)
-        elif depth == 0:
-            number_eval +=1
-            return state, heuristic_fn(state[-1].snapshot,maximize)
-        min_score = INF
-        min_path = []
-        agenda = []
-        for p in state[-1].generate_next_states():
-            agenda.append(state+[p])
-        while len(agenda) > 0:
-            t = agenda.pop(0)
-            path, score = max_play(t, depth-1, not maximize)
-            if min_score > score:
-                min_path = path
-                min_score = score
-        return min_path, min_score
+    static_evals = 0
+    best_path = None, None #path, #minimax_score
+    
+    next_states = state.generate_next_states()
+    
+    if  next_states == []:
+        return [state], state.get_endgame_score(is_current_player_maximizer=maximize), 1
 
-    def max_play(state, depth, maximize):
-        if state[-1].is_game_over():
-            nonlocal number_eval
-            number_eval +=1
-            return state, state[-1].get_endgame_score(maximize)
-        elif depth == 0:
-            number_eval +=1
-            return state, heuristic_fn(state[-1].snapshot,maximize)
-        max_score = -INF
-        max_path = []
-        agenda = []
-        for p in state[-1].generate_next_states():
-            agenda.append(state+[p])
-        while len(agenda) > 0:
-            t = agenda.pop(0)
-            path, score = min_play(t, depth-1, not maximize)
-            if max_score < score:
-                max_path = path
-                max_score = score
-        return max_path, max_score
-    best_path = []
-    best_score = 0
-    if maximize:
-        best_path, best_score = max_play([state],depth_limit,maximize)
+    if depth_limit == 0:
+        return [state], heuristic_fn(state.get_snapshot(), maximize), 1
+    
+    if maximize == True:
+        for ns in next_states:
+            new_res = minimax_search(ns, heuristic_fn, depth_limit-1, False) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] > best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
     else:
-        best_path, best_score = min_play([state],depth_limit,maximize)
-    return (best_path,best_score,number_eval)
+        for ns in next_states:
+            new_res = minimax_search(ns, heuristic_fn, depth_limit-1, True) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] < best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
+                
+    return best_path[-2], best_path[-1], static_evals
 
 # Uncomment the line below to try minimax_search with "BOARD_UHOH" and
 # depth_limit=1. Try increasing the value of depth_limit to see what happens:
-
-#pretty_print_dfs_type(minimax_search(GAME1,False))
-#pretty_print_dfs_type(minimax_search(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=4))
-print(GAME1)
+#pretty_print_dfs_type(minimax_search(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=1))
 
 def minimax_search_alphabeta(state, alpha=-INF, beta=INF, heuristic_fn=always_zero,
                              depth_limit=INF, maximize=True) :
     """"Performs minimax with alpha-beta pruning. Same return type 
     as dfs_maximizing."""
-    number_eval = 0
-    def alpha_beta_search(state, maximize, depth, alpha, beta, alpha_node=[], beta_node=[]):
-        if state[-1].is_game_over():
-            nonlocal number_eval
-            number_eval +=1
-            return state[-1].get_endgame_score(maximize), state
-        elif depth == 0:
-            number_eval +=1
-            return heuristic_fn(state[-1].snapshot, maximize), state
-        agenda = []
-        for p in state[-1].generate_next_states():
-            agenda.append(state+[p])
-        while len(agenda) > 0:
-            t = agenda.pop(0)
-            score, path = alpha_beta_search(t, not maximize, depth-1, alpha, beta, alpha_node, beta_node)
-            #print(score)
-            if maximize:
-                if score > alpha:
-                    alpha_node = path
-                    alpha = score
-            elif score < beta:
-                beta_node = path
-                beta = score
-            if beta <= alpha:
-                agenda = []
-        if maximize:
-            return alpha, alpha_node
-        else:
-            return beta, beta_node
-    best_path = []
-    best_score = 0
-    best_score, best_path = alpha_beta_search([state],maximize,depth_limit,alpha,beta)
-    return (best_path,best_score,number_eval)
+    static_evals = 0
+    best_path = None, None #path, #minimax_score
+    
+    next_states = state.generate_next_states()
+    
+    if  next_states == []:
+        return [state], state.get_endgame_score(is_current_player_maximizer=maximize), 1
+
+    if depth_limit == 0:
+        return [state], heuristic_fn(state.get_snapshot(), maximize), 1
+    
+    if maximize == True:
+        for ns in next_states:
+            new_res = minimax_search_alphabeta(ns, alpha, beta, 
+                                               heuristic_fn, depth_limit-1, False) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] > best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
+                alpha = max(new_res[-2], alpha)
+                if alpha >= beta:
+                    return best_path[-2], alpha, static_evals          
+    else:
+        for ns in next_states:
+            new_res = minimax_search_alphabeta(ns, alpha, beta,
+                                     heuristic_fn, depth_limit-1, True) #path, minimax, static, -3, -2, -1
+            static_evals += new_res[-1]
+            
+            if best_path[-1] == None or new_res[-2] < best_path[-1]:
+                best_path = [state] + new_res[-3], new_res[-2]
+                beta = min(new_res[-2], beta)
+                if alpha >= beta:
+                    return best_path[-2], beta, static_evals
+                
+    return best_path[-2], best_path[-1], static_evals
 
 # Uncomment the line below to try minimax_search_alphabeta with "BOARD_UHOH" and
 # depth_limit=4. Compare with the number of evaluations from minimax_search for
 # different values of depth_limit.
-
-pretty_print_dfs_type(minimax_search_alphabeta(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=4))
-#print('------------')
+#pretty_print_dfs_type(minimax_search_alphabeta(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=4))
 
 def progressive_deepening(state, heuristic_fn=always_zero, depth_limit=INF,
                           maximize=True) :
     """Runs minimax with alpha-beta pruning. At each level, updates anytime_value
     with the tuple returned from minimax_search_alphabeta. Returns anytime_value."""
-    anytime_value = AnytimeValue()
-    for i in range(depth_limit):
-        value = minimax_search_alphabeta(state,heuristic_fn=heuristic_fn,depth_limit=i+1,maximize=maximize)
-        if value != anytime_value.get_value():
-            anytime_value.set_value(value)
-            #anytime_value.pretty_print()
-    return anytime_value
-
-
+    anytime = AnytimeValue()
+    for d in range(1, depth_limit+1):
+        result = minimax_search_alphabeta(state, -INF, INF, heuristic_fn, d, maximize)
+        anytime.set_value(result)
+    return anytime
+        
 # Uncomment the line below to try progressive_deepening with "BOARD_UHOH" and
 # depth_limit=4. Compare the total number of evaluations with the number of
 # evaluations from minimax_search or minimax_search_alphabeta.
 
-#progressive_deepening(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=3).pretty_print()
+#progressive_deepening(state_UHOH, heuristic_fn=heuristic_connectfour, depth_limit=4).pretty_print()
+
 
 # Progressive deepening is NOT optional. However, you may find that 
 #  the tests for progressive deepening take a long time. If you would

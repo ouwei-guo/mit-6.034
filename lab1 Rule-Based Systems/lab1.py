@@ -41,16 +41,31 @@ transitive_rule = IF(AND('(?y) beats (?z)',
 #### Part 3: Family Relations #########################################
 
 # Define your rules here. We've given you an example rule whose lead you can follow:
-#friend_rule = IF( AND("person (?x)", "person (?y)"), THEN ("friend (?x) (?y)", "friend (?y) (?x)") )
-child_rule = IF( "parent (?x) (?y)", THEN ("child (?y) (?x)") )
-sibling_rule = IF( AND("parent (?x) (?y)", "child (?z) (?x)" ), THEN ("sibling (?y) (?z)", "sibling (?y) (?z)") )
-cousin_rule = IF( AND("parent (?a) (?x)", "parent (?b) (?y)", "sibling (?a) (?b)", NOT("sibling (?x) (?y)")), THEN ("cousin (?x) (?y)", "cousin (?y) (?x)") )
-grandparent_rule = IF( AND("parent (?x) (?y)", "parent (?y) (?z)"), THEN ("grandparent (?x) (?z)") )
-grandchild_rule = IF( AND("parent (?x) (?y)", "parent (?y) (?z)"), THEN ("grandchild (?z) (?x)") )
+friend_rule = IF( AND("person (?x)", "person (?y)"), THEN ("friend (?x) (?y)", "friend (?y) (?x)") )
+
+same_identity = IF(OR('person (?x)'), THEN('same (?x) (?x)'))
+
+sibling_rule = IF(AND('parent (?z) (?x)',
+                      'parent (?z) (?y)',
+                      NOT('same (?x) (?y)')),
+                 THEN('sibling (?x) (?y)', 'sibling (?y) (?x)'))
+
+child_rule = IF('parent (?y) (?x)', THEN('child (?x) (?y)'))
+
+cousin_rule = IF(AND('parent (?z1) (?x)',
+                       'parent (?z2) (?y)',
+                       'sibling (?z2) (?z1)',
+                     NOT('sibling (?x) (?y)')),
+                THEN('cousin (?x) (?y)', 'cousin (?y) (?x)'))
+
+grandparent_rule = IF(AND('parent (?x) (?a)',
+                          'parent (?a) (?y)'),
+                      THEN('grandparent (?x) (?y)','grandchild (?y) (?x)'))
 
 
 # Add your rules to this list:
-family_rules = [ child_rule, sibling_rule, cousin_rule, grandparent_rule, grandchild_rule ]
+family_rules = [same_identity, sibling_rule,
+                child_rule, cousin_rule, grandparent_rule]
 
 # Uncomment this to test your data on the Simpsons family:
 #pprint(forward_chain(family_rules, simpsons_data, verbose=True))
@@ -88,23 +103,29 @@ def backchain_to_goal_tree(rules, hypothesis):
     (possibly with unbound variables), *not* AND or OR objects.
     Make sure to use simplify(...) to flatten trees where appropriate.
     """
-    if len(rules) == 0:
-        return hypothesis
-    p = OR()
-    for rule in rules:
-        m = match(rule.consequent(),hypothesis)
-        if m != None:
-            p.append(hypothesis)
-            a = populate(rule.antecedent(),m)
-            if isinstance(a,AND) or isinstance(a,OR):
-                for i in range(len(a)):
-                    b = backchain_to_goal_tree(rules,a[i])
-                    if len(b) > 0:
-                        a[i] = b
-                p.append(simplify(a))
+    cons_matches = [hypothesis] #always OR
+    
+    for r in rules:
+        var = match(r.consequent(), hypothesis)
+        
+        if var!=None:
+            ant = r.antecedent()
+            ant_matches = []
+            t = type(ant)
+            next_hypo = populate(ant, var)
+
+            if t == str:
+                ant_matches.append(backchain_to_goal_tree(rules, next_hypo))
             else:
-                p.append(backchain_to_goal_tree(rules,a))
-    return simplify(p)
+                for a in next_hypo:
+                    ant_matches.append(backchain_to_goal_tree(rules, a))
+                    
+            if t == OR:
+                cons_matches.append(OR(ant_matches))
+            else:
+                cons_matches.append(AND(ant_matches))
+                
+    return simplify(OR(cons_matches))
 
 # Uncomment this to test out your backward chainer:
 #pretty_goal_tree(backchain_to_goal_tree(zookeeper_rules, 'opus is a penguin'))
